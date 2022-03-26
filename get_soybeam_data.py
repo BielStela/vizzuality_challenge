@@ -1,9 +1,11 @@
 import sys
 import urllib.request
 import zipfile
+from itertools import product
 from pathlib import Path
 
 import geopandas as gpd
+import requests
 
 tif_urls = [
     "https://s3.amazonaws.com/mapspam/2010/v2.0/geotiff/spam2010v2r0_global_harv_area.geotiff.zip",
@@ -16,6 +18,8 @@ tif_urls = [
 areas_url = "https://raw.githubusercontent.com/Vizzuality/science-code-challenge/main/areas.geojson"
 
 CROP_TYPE = "SOYB"
+
+LOSS_YEAR_SOURCES_URL = "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2020-v1.8/lossyear.txt"
 
 
 def download_and_unzip_soybeam(urls: list[str], data_dir: Path):
@@ -47,10 +51,24 @@ def round_to_ten(val: float) -> int:
         return (int(val // 10) + 1) * 10
 
 
-def make_granules_from_extend(bboxes: gpd.GeoDataFrame):
-    """Makes granules for downloading loss forest data."""
-    pass
+def coord_as_int(coord: str) -> int:
+    sign = -1 if coord[-1] in "SW" else 1
+    return int(coord[:-1]) * sign
 
+
+def format_lat(lat: int) -> str:
+    return f"{lat}N" if lat > 0 else f"{lat}S"
+
+
+def format_lon(lon: int) -> str:
+    return f"{lon}E" if lon > 0 else f"{lon}W"
+
+
+def make_granules_from_extend(bbox: gpd.GeoSeries, base_name, extension):
+    """Makes granules for downloading loss forest data."""
+    longitudes = list(range(bbox.miny, bbox.maxy, 10)) + [bbox.maxy]
+    latitudes = list(range(bbox.minx, bbox.maxx, 10)) + [bbox.maxx]
+    return [f"{base_name}_{format_lat(lat)}_{format_lon(lon)}" for lat, lon in product(longitudes, latitudes)]
 
 if __name__ == "__main__":
     base_data_dir = Path("./") / "data"
@@ -67,3 +85,6 @@ if __name__ == "__main__":
 
     areas = gpd.read_file(areas_filename)
     bboxes = areas.geometry.bounds.round()
+
+    req = requests.get(LOSS_YEAR_SOURCES_URL)
+    req.text
