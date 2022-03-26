@@ -48,11 +48,14 @@ def download_and_unzip_soybeam(urls: list[str], data_dir: Path):
 
 
 def expand_bbox_to_nearest_tens(bbox: gpd.GeoSeries) -> gpd.GeoSeries:
+    # todo: Clarify wtf is going on here
     bbox = bbox.copy()
+
     bbox.minx = np.floor(bbox.minx // 10) * 10
-    bbox.maxx = np.ceil(bbox.maxx // 10) * 10
-    bbox.miny = np.floor(bbox.miny // 10) * 10
-    bbox.maxy = np.ceil(bbox.maxy // 10) * 10
+    bbox.maxx = np.floor(bbox.maxx // 10) * 10
+
+    bbox.miny = (bbox.miny // 10 + 1) * 10
+    bbox.maxy = (bbox.maxy // 10 + 1) * 10
     return bbox.astype(int)
 
 
@@ -81,7 +84,7 @@ if __name__ == "__main__":
   
   Data downloader for the code challenge.
   
-  """)
+""")
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument("data_dir", type=str, help="Directory where to download the data", default="data")
     parser.add_argument("-f", action="store_true", help="Force downloading without asking permission")
@@ -98,7 +101,7 @@ if __name__ == "__main__":
             print("Canceling...")
             sys.exit(0)
 
-    # download_and_unzip_soybeam(SPAM_TIF_URLS, base_data_dir)
+    download_and_unzip_soybeam(SPAM_TIF_URLS, base_data_dir)
 
     print(f"Downloading areas.geojson...")
     areas_filename = base_data_dir / AREAS_URL.split("/")[-1]

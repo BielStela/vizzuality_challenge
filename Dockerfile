@@ -1,5 +1,7 @@
 FROM continuumio/miniconda3
 
+WORKDIR challenge
+
 COPY environment.yml data_downloader.py challenge.ipynb ./
 RUN conda env create -f environment.yml
 
