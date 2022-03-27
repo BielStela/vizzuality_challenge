@@ -47,16 +47,15 @@ def download_and_unzip_soybeam(urls: list[str], data_dir: Path):
         zip_file.unlink(missing_ok=True)
 
 
-def expand_bbox_to_nearest_tens(bbox: gpd.GeoSeries) -> gpd.GeoSeries:
+def buffer_bbox_to_upper_left_tens(bbox: tuple) -> gpd.GeoSeries:
     # todo: Clarify wtf is going on here
-    bbox = bbox.copy()
+    buffered_bbox = gpd.GeoSeries()
+    buffered_bbox["minx"] = np.floor(bbox[0] // 10) * 10
+    buffered_bbox["maxx"] = np.floor(bbox[2] // 10) * 10
 
-    bbox.minx = np.floor(bbox.minx // 10) * 10
-    bbox.maxx = np.floor(bbox.maxx // 10) * 10
-
-    bbox.miny = (bbox.miny // 10 + 1) * 10
-    bbox.maxy = (bbox.maxy // 10 + 1) * 10
-    return bbox.astype(int)
+    buffered_bbox["miny"] = (bbox[1] // 10 + 1) * 10
+    buffered_bbox["maxy"] = (bbox[3] // 10 + 1) * 10
+    return buffered_bbox.astype(int)
 
 
 def format_lat(lat: int) -> str:
@@ -67,7 +66,7 @@ def format_lon(lon: int) -> str:
     return f"{lon:03d}E" if lon >= 0 else f"{abs(lon):03d}W"
 
 
-def make_granules_from_extend(bbox: gpd.GeoSeries, base_name):
+def make_granules_from_bounds(bbox: gpd.GeoSeries, base_name):
     """Makes granules for downloading loss forest data."""
     longitudes = range(bbox.miny, bbox.maxy + 10, 10)
     latitudes = range(bbox.minx, bbox.maxx + 10, 10)
@@ -101,34 +100,39 @@ if __name__ == "__main__":
             print("Canceling...")
             sys.exit(0)
 
-    download_and_unzip_soybeam(SPAM_TIF_URLS, base_data_dir)
+    # download_and_unzip_soybeam(SPAM_TIF_URLS, base_data_dir)
 
     print(f"Downloading areas.geojson...")
     areas_filename = base_data_dir / AREAS_URL.split("/")[-1]
     urllib.request.urlretrieve(AREAS_URL, filename=areas_filename)
 
-    # Retrieve Global Forest Change data for the regions in areas.geojson
+    # areas.geojson will be used to retrieve the necessary tiles of forest data
     areas = gpd.read_file(areas_filename)
-    # buffer the bounding boxes of the areas, so we can download all the 10x10 degree tiles that contain data
-    # in the regions of areas.geojson
-    rounded_areas_bounds = areas.geometry.bounds.apply(expand_bbox_to_nearest_tens, axis=1)
-
-    req = requests.get(FOREST_CHANGE_SOURCES_URL)
-    forest_change_urls = req.text.split("\n")
-    donor_filenames = forest_change_urls[0].split("/")[-1]
-    *filename_base, _, _ = donor_filenames.removesuffix(".tif").split("_")
-    target_filenames = []
-    for _, bbox in rounded_areas_bounds.iterrows():
-        target_filenames.extend(make_granules_from_extend(bbox, "_".join(filename_base)))
-
-    forest_change_urls_in_areas = [url for url in forest_change_urls if Path(url).name in target_filenames]
+    areas["region"] = ["india", "america"]
 
     base_forest_data_dir = base_data_dir / "forest"
     base_forest_data_dir.mkdir(exist_ok=True)
-    # download the forest change images
-    for url in (pbar := tqdm(forest_change_urls_in_areas)):
-        filename = Path(url).name
-        pbar.set_description(f"Downloading forest change data")
-        pbar.set_postfix_str(filename)
-        urllib.request.urlretrieve(url, filename=base_forest_data_dir / filename)
+
+    # get the available images urls list
+    req = requests.get(FOREST_CHANGE_SOURCES_URL)
+    forest_change_urls = req.text.split("\n")
+    donor_filename = forest_change_urls[0].split("/")[-1]  # use an arbitrary url to get the file name structure
+    *filename_base, _, _ = donor_filename.removesuffix(".tif").split("_")
+
+    # Retrieve Global Forest Change data
+    for _, area in areas.iterrows():
+        # buffer the bounding boxes of the areas, so we can download all the 10x10 degree tiles that contain data
+        # in the area. Uses GeoSeries because the .bounds method returns a nice dataframe with the bound labels
+        buffered_area_bounds = buffer_bbox_to_upper_left_tens(area.geometry.bounds)
+        target_filenames = make_granules_from_bounds(buffered_area_bounds, "_".join(filename_base))
+        forest_change_urls_in_area = [url for url in forest_change_urls if Path(url).name in target_filenames]
+
+        forest_region_dir = base_forest_data_dir/area.region
+        forest_region_dir.mkdir(exist_ok=True)
+        # download the images
+        for url in (pbar := tqdm(forest_change_urls_in_area)):
+            filename = Path(url).name
+            pbar.set_description(f"Downloading forest change data for {area.region}")
+            pbar.set_postfix_str(filename)
+            urllib.request.urlretrieve(url, filename=forest_region_dir / filename)
     print("\nAll done! (ง ͡ʘ ͜ʖ ͡ʘ)ง")
