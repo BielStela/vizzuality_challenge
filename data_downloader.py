@@ -48,7 +48,7 @@ def download_and_unzip_soybeam(urls: list[str], data_dir: Path):
 
 
 def buffer_bbox_to_upper_left_tens(bbox: tuple) -> gpd.GeoSeries:
-    # todo: Clarify wtf is going on here
+    # todo: Clarify what is going on here
     buffered_bbox = gpd.GeoSeries()
     buffered_bbox["minx"] = np.floor(bbox[0] // 10) * 10
     buffered_bbox["maxx"] = np.floor(bbox[2] // 10) * 10
@@ -100,7 +100,7 @@ if __name__ == "__main__":
             print("Canceling...")
             sys.exit(0)
 
-    # download_and_unzip_soybeam(SPAM_TIF_URLS, base_data_dir)
+    download_and_unzip_soybeam(SPAM_TIF_URLS, base_data_dir)
 
     print(f"Downloading areas.geojson...")
     areas_filename = base_data_dir / AREAS_URL.split("/")[-1]
@@ -132,7 +132,7 @@ if __name__ == "__main__":
         # download the images
         for url in (pbar := tqdm(forest_change_urls_in_area)):
             filename = Path(url).name
-            pbar.set_description(f"Downloading forest change data for {area.region}")
+            pbar.set_description(f"Downloading forest loss data for {area.region}")
             pbar.set_postfix_str(filename)
             urllib.request.urlretrieve(url, filename=forest_region_dir / filename)
     print("\nAll done! (ง ͡ʘ ͜ʖ ͡ʘ)ง")
