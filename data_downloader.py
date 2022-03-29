@@ -16,7 +16,7 @@ SPAM_TIF_URLS = [
     "https://s3.amazonaws.com/mapspam/2010/v2.0/geotiff/spam2010v2r0_global_yield.geotiff.zip",
     "https://s3.amazonaws.com/mapspam/2010/v2.0/geotiff/spam2010v2r0_global_prod.geotiff.zip",
     "https://s3.amazonaws.com/mapspam/2010/v2.0/geotiff/spam2010v2r0_global_val_prod_agg.geotiff.zip",
-    ]
+]
 AREAS_URL = "https://raw.githubusercontent.com/Vizzuality/science-code-challenge/main/areas.geojson"
 CROP_TYPE = "SOYB"
 FOREST_CHANGE_SOURCES_URL = "https://storage.googleapis.com/earthenginepartners-hansen/GFC-2020-v1.8/lossyear.txt"
@@ -39,7 +39,7 @@ def download_and_unzip_soybeam(urls: list[str], data_dir: Path):
     for zip_file in (pbar := tqdm(zip_files)):
         pbar.set_description(f"Unzipping soy beam images")
         dest_dir = data_dir / zip_file.name.removesuffix(".geotiff.zip")
-        with zipfile.ZipFile(zip_file, 'r') as src:
+        with zipfile.ZipFile(zip_file, "r") as src:
             # filter images in the zip that contain the required crop type label
             soybeam_images = [fname for fname in src.namelist() if CROP_TYPE in fname]
             src.extractall(dest_dir, members=soybeam_images)
@@ -70,11 +70,15 @@ def make_granules_from_bounds(bbox: gpd.GeoSeries, base_name):
     """Makes granules for downloading loss forest data."""
     longitudes = range(bbox.miny, bbox.maxy + 10, 10)
     latitudes = range(bbox.minx, bbox.maxx + 10, 10)
-    return [f"{base_name}_{format_lat(lat)}_{format_lon(lon)}.tif" for lat, lon in product(longitudes, latitudes)]
+    return [
+        f"{base_name}_{format_lat(lat)}_{format_lon(lon)}.tif"
+        for lat, lon in product(longitudes, latitudes)
+    ]
 
 
 if __name__ == "__main__":
-    print("""██╗   ██╗██╗███████╗███████╗██╗   ██╗ █████╗ ██╗     ██╗████████╗██╗   ██╗
+    print(
+        """██╗   ██╗██╗███████╗███████╗██╗   ██╗ █████╗ ██╗     ██╗████████╗██╗   ██╗
 ██║   ██║██║╚══███╔╝╚══███╔╝██║   ██║██╔══██╗██║     ██║╚══██╔══╝╚██╗ ██╔╝
 ██║   ██║██║  ███╔╝   ███╔╝ ██║   ██║███████║██║     ██║   ██║    ╚████╔╝ 
 ╚██╗ ██╔╝██║ ███╔╝   ███╔╝  ██║   ██║██╔══██║██║     ██║   ██║     ╚██╔╝  
@@ -83,10 +87,18 @@ if __name__ == "__main__":
   
   Data downloader for the code challenge.
   
-""")
+"""
+    )
     parser = argparse.ArgumentParser(description="Process some integers.")
-    parser.add_argument("data_dir", type=str, help="Directory where to download the data", default="data")
-    parser.add_argument("-f", action="store_true", help="Force downloading without asking permission")
+    parser.add_argument(
+        "data_dir",
+        type=str,
+        help="Directory where to download the data",
+        default="data",
+    )
+    parser.add_argument(
+        "-f", action="store_true", help="Force downloading without asking permission"
+    )
     args = parser.parse_args()
 
     base_data_dir = Path("./") / args.data_dir
@@ -95,8 +107,10 @@ if __name__ == "__main__":
     if args.f:  # don't ask for user input
         print(f"Downloading data into {base_data_dir.absolute()}")
     else:  # ask for user input to continue the download
-        if not input(f"I'm about to download the data into {base_data_dir.absolute()}.\n"
-                     "Do you want to continue (yes/no)?: ").lower() in ["yes", "y"]:
+        if not input(
+            f"I'm about to download the data into {base_data_dir.absolute()}.\n"
+            "Do you want to continue (yes/no)?: "
+        ).lower() in ["yes", "y"]:
             print("Canceling...")
             sys.exit(0)
 
@@ -116,7 +130,8 @@ if __name__ == "__main__":
     # get the available images urls list
     req = requests.get(FOREST_CHANGE_SOURCES_URL)
     forest_change_urls = req.text.split("\n")
-    donor_filename = forest_change_urls[0].split("/")[-1]  # use an arbitrary url to get the file name structure
+    # use an arbitrary url to get the file name structure
+    donor_filename = forest_change_urls[0].split("/")[-1]
     *filename_base, _, _ = donor_filename.removesuffix(".tif").split("_")
 
     # Retrieve Global Forest Change data
@@ -124,10 +139,14 @@ if __name__ == "__main__":
         # buffer the bounding boxes of the areas, so we can download all the 10x10 degree tiles that contain data
         # in the area. Uses GeoSeries because the .bounds method returns a nice dataframe with the bound labels
         buffered_area_bounds = buffer_bbox_to_upper_left_tens(area.geometry.bounds)
-        target_filenames = make_granules_from_bounds(buffered_area_bounds, "_".join(filename_base))
-        forest_change_urls_in_area = [url for url in forest_change_urls if Path(url).name in target_filenames]
+        target_filenames = make_granules_from_bounds(
+            buffered_area_bounds, "_".join(filename_base)
+        )
+        forest_change_urls_in_area = [
+            url for url in forest_change_urls if Path(url).name in target_filenames
+        ]
 
-        forest_region_dir = base_forest_data_dir/area.region
+        forest_region_dir = base_forest_data_dir / area.region
         forest_region_dir.mkdir(exist_ok=True)
         # download the images
         for url in (pbar := tqdm(forest_change_urls_in_area)):
